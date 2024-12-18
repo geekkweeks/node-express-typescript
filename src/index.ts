@@ -12,7 +12,7 @@ const port: number =
   process.env.PORT != null ? parseInt(process.env.PORT) : 3000
 
 app.get('/', (req: Request, res: Response, next: NextFunction) => {
-  res.send('Hello, World!dsd')
+  res.send('Hello, World! UIO')
 })
 
 app.listen(port, () => {
