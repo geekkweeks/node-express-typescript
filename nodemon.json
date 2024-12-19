@@ -1,5 +1,5 @@
 {
     "ext": ".ts",
-    "watch": ["src/**/*.ts"],
+    "watch": ["src"],
     "exec": "npx ts-node ./src/index.ts"
 }
