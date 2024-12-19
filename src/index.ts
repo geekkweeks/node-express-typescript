@@ -1,9 +1,7 @@
 import express, { NextFunction, Request, Response, Application } from 'express'
 
-import 'dotenv/config'
-
 const app: Application = express()
-const port: number = process.env.PORT != null ? parseInt(process.env.PORT) : 3000
+const port: Number = process.env.PORT != null ? parseInt(process.env.PORT) : 3000
 
 app.get('/', (req: Request, res: Response, next: NextFunction) => {
   res.send('Hello, World! UIO')
