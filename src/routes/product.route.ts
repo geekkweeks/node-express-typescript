@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express'
+import { createProductValidationSchema } from '../validation/product.validation'
 import { logger } from '../utils/logger'
 
 export const ProductRouter = Router()
@@ -18,6 +19,11 @@ ProductRouter.get('/', (req: Request, res: Response, next: NextFunction) => {
 })
 
 ProductRouter.post('/', (req: Request, res: Response, next: NextFunction) => {
-  logger.info('Received POST request at /products')
-  res.status(201).send({ message: 'Product created successfully', data: req.body })
+  const { error, value } = createProductValidationSchema(req.body)
+  if (error) {
+    logger.error(`Product Validation error: ${error.details[0].message}`)
+    res.status(422).send({ message: error.details[0].message, data: null })
+  }
+
+  res.status(201).send({ message: 'Product created successfully', data: value })
 })
