@@ -36,4 +36,5 @@ export interface Feed {
   total_views: Number | 0
   is_analysed: Boolean | false
   analysed_date_time: String | 0
+  is_manually: Boolean | false
 }

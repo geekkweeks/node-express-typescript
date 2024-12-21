@@ -85,7 +85,7 @@ export const getFeedService = async () => {
           LEFT JOIN trendata_creds.tbl_social_cluster z on x.src_cluster_id = z.set_id AND a.stream_client_id = z.set_client_id 
           WHERE b.code is not null
           ORDER BY a.stream_source_date DESC
-          LIMIT 10`
+          LIMIT 50000`
     const [rows] = await db.query(query)
     const list = rows as DataItem[] | []
 
@@ -106,6 +106,15 @@ export const getFeedService = async () => {
         })
       const data = feedList[0]
 
+      let isManually = true
+      if (
+        data?.media_name === 'Forum' ||
+        data?.media_name === 'Blogs' ||
+        data?.media_name === 'Reddit' ||
+        data?.media_name === 'LinkedIn'
+      ) {
+        isManually = true
+      }
       result.push({
         id: data.id,
         age: data.age,
@@ -144,6 +153,7 @@ export const getFeedService = async () => {
           reach: 0,
           retweet: 0
         },
+        is_manually: isManually,
         user: {
           id: '',
           display_name: data?.display_name,
