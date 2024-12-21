@@ -1,5 +1,5 @@
 export interface Client {
-  id: string
-  name: string
-  sentiment: string
+  id: String
+  name: String
+  sentiment: String
 }

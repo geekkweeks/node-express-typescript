@@ -4,6 +4,12 @@ import { logger } from './utils/logger'
 import bodyParser from 'body-parser'
 import cors from 'cors'
 
+// Connect to MongoDB
+import './utils/connectDB'
+
+// Cron job
+import './cron'
+
 const app: Application = express()
 const port: Number = process.env.PORT != null ? parseInt(process.env.PORT) : 4000
 

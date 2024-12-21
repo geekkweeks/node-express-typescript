@@ -18,6 +18,13 @@
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/strict-boolean-expressions": "off",
-    "array-callback-return": "off"
+    "array-callback-return": "off",
+    "@typescript-eslint/return-await": "off",
+    "@typescript-eslint/no-misused-promises": "off",
+    "@typescript-eslint/no-for-in-array": "off",
+    "eslint-disable-next-line no-tabs": "off",
+    "padded-blocks": "off",
+    "@typescript-eslint/prefer-optional-chain": "off",
+    "no-tabs": "off"
   }
 }

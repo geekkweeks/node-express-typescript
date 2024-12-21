@@ -1,5 +1,5 @@
 export interface Metric {
-  engagement: number
-  engangement_rate: number
-  reach: number
+  engagement: Number
+  engangement_rate: Number
+  reach: Number
 }
