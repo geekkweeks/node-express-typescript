@@ -2,93 +2,59 @@ import { Client } from '../models/client.model'
 import { db } from '../utils/db'
 import { logger } from '../utils/logger'
 import { Feed } from '../models/feed.model'
-import { DataItem } from '../models/dataRow.model'
+import { AuthMetric, DataItem } from '../models/dataRow.model'
 import CONFIG from '../config/environment'
 import { Client as ElasticSearchClient } from '@elastic/elasticsearch'
+import { User } from '../models/user.model'
+import { SourceMeta } from '../models/source_meta.model'
 
 export const getFeedService = async () => {
   try {
     const result: Feed[] = []
-    const query = `SELECT 
-		  COALESCE(a.stream_source_id, UUID()) id, 
-		  src_title,
-          set_title subject,
-          ent_word keyword,
-          a.stream_user_age age, 
-          DATE_FORMAT(a. stream_user_updater, '%Y-%m-%d %T') analysed_date_time,
-          b.code client_code,
-          b.name client_name,
-          lower(a.stream_source_tone) sentiment,
-          stream_conversation conversation,
-          a.stream_source_detail detail,
-          a.stream_user_edu education,
-          a.stream_source_title feed_title,
-          LOWER(a.stream_user_gender) gender,
-          LOWER(a.stream_user_group) 'group',
-          a.stream_source_image image_url,
-          a.stream_issue issue,
-          a.stream_source_loc location,
-          lower(C.media_name) media_name,
-          d.user_login reviewer,
-          DATE_FORMAT(a.stream_source_date, '%Y-%m-%d %T')  source_date_time,
-          a.stream_source_url source_url,
-          a.stream_talk_about talk_about,
-          a.stream_source_image avatar_url,
-          CASE
-                WHEN C.media_name = 'Twitter' THEN a.stream_user_alias
-                WHEN C.media_name = 'Instagram' THEN a.stream_user_name
-                WHEN C.media_name = 'Facebook' THEN a.stream_user_name
-                WHEN C.media_name = 'TikTok' THEN a.stream_user_name
-                WHEN C.media_name = 'YouTube' THEN a.stream_user_name
-                WHEN C.media_name = 'Forum' THEN a.stream_user_name
-                WHEN C.media_name = 'LinkedIn' THEN a.stream_user_name
-                WHEN C.media_name = 'Blogs' THEN a.stream_user_name
-                ELSE a.stream_user_name
-          END AS name,
-          CASE
-                WHEN C.media_name = 'Twitter' THEN a.stream_user_name
-                WHEN C.media_name = 'Instagram' THEN a.stream_user_alias
-                WHEN C.media_name = 'Facebook' THEN a.stream_user_alias
-                WHEN C.media_name = 'TikTok' THEN a.stream_user_alias
-                WHEN C.media_name = 'YouTube' THEN a.stream_user_alias
-                WHEN C.media_name = 'Forum' THEN a.stream_user_alias
-                WHEN C.media_name = 'LinkedIn' THEN a.stream_user_alias
-                WHEN C.media_name = 'Blogs' THEN a.stream_user_alias
-                ELSE a.stream_user_name
-          END AS display_name,
-          stream_source_engage engage,
-          stream_source_meta,
-          CASE 
-			WHEN stream_analysed = 'simple' AND stream_status = 'Active' THEN 'false'
-            WHEN stream_analysed = 'simple' AND stream_status = 'Spam' THEN 'false'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Active' THEN 'true'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Spam' THEN 'true'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Deleted' THEN 'true'
-            WHEN stream_analysed = 'simple' AND stream_status = 'Deleted' THEN 'true'
-            else 'false'
-	      END is_analysed,
-          CASE 
-			WHEN stream_analysed = 'simple' AND stream_status = 'Active' THEN 'unanalysed'
-            WHEN stream_analysed = 'simple' AND stream_status = 'Spam' THEN 'spam'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Active' THEN 'analysed'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Spam' THEN 'spam'
-            WHEN stream_analysed = 'advanced' AND stream_status = 'Deleted' THEN 'deleted'
-            WHEN stream_analysed = 'simple' AND stream_status = 'Deleted' THEN 'deleted'
-            else 'unanalysed'
-	      END status
-          FROM tbl_feeds_backup a
-          LEFT JOIN (SELECT bc.id, bc.code, ab.client_id, bc.name FROM tbl_client ab JOIN client bc on ab.client_name = bc.name) b on a.stream_client_id = b.client_id
-          LEFT JOIN tbl_media c on a.stream_media_id = c.media_id
-          LEFT JOIN tbl_user d on a.stream_user_updater = d.user_id
-          LEFT JOIN trendata_creds.tbl_social_search x on a.stream_src_id = x.src_id AND a.stream_cluster_id = x.src_cluster_id AND a.stream_client_id = x.src_client_id
-          LEFT JOIN trendata_creds.tbl_social_entity y on x.src_id = y.ent_src_id and a.stream_media_id = y.ent_media_id
-          LEFT JOIN trendata_creds.tbl_social_cluster z on x.src_cluster_id = z.set_id AND a.stream_client_id = z.set_client_id 
-          WHERE b.code is not null
-          ORDER BY a.stream_source_date DESC
-          LIMIT 50000`
+    const query = `SELECT
+                a.stream_id id,
+                a.stream_title title,
+                a.stream_topic topic,
+                a.stream_keywords keywords,
+                null age,
+                DATE_FORMAT(a.stream_user_updated, '%Y-%m-%d %H:%i:%s') analysed_date_time,
+                d.client_code client_code,
+                d.client_name client_name,
+                lower(b.analyse_tone) sentiment,
+                null conversation,
+                a.stream_detail detail,
+                f.auth_edu education,
+                a.stream_img_url image_url,
+                f.auth_location location,
+                f.auth_gender gender,
+                a.stream_media_id media_id,
+                lower(e.media_name) media_name,
+                'Aggregator' reviewer,
+                'Aggregator' reviewer_username,
+                DATE_FORMAT(a.stream_user_created, '%Y-%m-%d %H:%i:%s') source_date_time,
+                a.stream_link_url source_url,
+                f.auth_img_url avatar_url,
+                f.auth_name display_name,
+                f.auth_user author_name,
+                a.stream_engage engage,
+                a.stream_status status,
+                a.stream_metric stream_source_meta,
+                c.auth_id auth_id,
+                c.auth_user auth_user_name,
+                c.auth_link_url auth_link_url,
+                c.auth_name auth_display_name,
+                c.auth_img_url avatar_url,
+                c.auth_metric auth_metric,
+                a.stream_edited edited
+            FROM tbl_stream_content_migration a
+            LEFT JOIN tbl_stream_analysis b on a.stream_id = b.analyse_stream_id
+            LEFT JOIN tbl_stream_author c on a.stream_auth_id = c.auth_id
+            LEFT JOIN trendata_creds.tbl_client d on b.analyse_client_id = d.client_id
+            LEFT JOIN trendata_creds.tbl_media e on a.stream_media_id = e.media_id
+            LEFT JOIN tbl_stream_author f on a.stream_auth_id = f.auth_id
+            LIMIT 15000`
     const [rows] = await db.query(query)
     const list = rows as DataItem[] | []
-
     const uniqueIdList = list
       .filter((obj, index, self) => index === self.findIndex((t) => t.id === obj.id))
       .map((obj) => obj.id)
@@ -99,14 +65,15 @@ export const getFeedService = async () => {
         .filter((obj, index, self) => index === self.findIndex((t) => t.id === obj.id))
         .map((obj) => {
           return {
-            id: obj?.client_code,
+            code: obj?.client_code,
             name: obj?.client_name,
             sentiment: obj?.sentiment
           } as Client
         })
       const data = feedList[0]
+      console.log('🚀 ~ getFeedService ~ uniqueClients:', uniqueClients[0])
 
-      let isManually = true
+      let isManually = false
       if (
         data?.media_name === 'Forum' ||
         data?.media_name === 'Blogs' ||
@@ -115,57 +82,87 @@ export const getFeedService = async () => {
       ) {
         isManually = true
       }
-      result.push({
-        id: data.id,
-        age: data.age,
+
+      // Parse the JSON string in stream_source_meta
+      let streamSourceMeta: SourceMeta | null = null
+      if (data?.stream_source_meta) {
+        try {
+          streamSourceMeta = JSON.parse(data.stream_source_meta) as SourceMeta
+        } catch (error) {
+          console.error('Error parsing stream_source_meta:', error)
+        }
+      }
+
+      let authMetric: AuthMetric | null = null
+      if (data?.auth_metric_str) {
+        try {
+          authMetric = JSON.parse(data.auth_metric_str) as AuthMetric
+        } catch (error) {
+          console.error('Error parsing stream_source_meta:', error)
+        }
+      }
+
+      const feedData = {
+        id: data?.id,
+        age: data?.age,
+        analysed_date_time: data?.analysed_date_time,
         clients: uniqueClients,
-        feed_title: data?.feed_title,
-        source_url: data?.source_url,
-        image_url: data?.image_url,
         conversation: data?.conversation,
         detail: data?.detail,
+        edited: data.edited ?? 0,
         education: data?.education,
-        gender: data?.gender,
-        group: data.group,
-        issue: data?.issue,
-        location: data?.location,
-        media_name: data?.media_name,
-        subject: data?.subject,
-        keyword: data?.keyword,
-        reviewer: data?.reviewer,
-        source_date_time: data?.source_date_time,
-        status: data?.status,
-        talk_about: data?.talk_about,
-        total_comments: data?.stream_source_meta?.comments ?? 0,
-        total_dislikes: 0,
-        total_favourites: data?.stream_source_meta?.favourites ?? 0,
-        total_likes: data?.stream_source_meta?.likes ?? 0,
-        total_quote_retweet: 0,
-        total_reply: 0,
-        total_retweet: data?.stream_source_meta?.retweets ?? 0,
-        total_shares: data?.stream_source_meta?.shares ?? 0,
-        total_views: data?.stream_source_meta?.views ?? 0,
-        is_analysed: data?.is_analysed,
-        analysed_date_time: data?.analysed_date_time,
-        metric: {
-          engagement: data?.engage ?? 0,
-          engangement_rate: 0,
-          reach: 0,
-          retweet: 0
-        },
+        feed_title: data?.title,
+        gender: data?.gender ?? null,
+        group: data.group ?? null,
+        image_url: data?.image_url,
         is_manually: isManually,
+        keywords: data?.keywords ? JSON.parse(data?.keywords) : [],
+        location: data?.location ?? null,
+        media_name: data?.media_name,
+        metric: {
+          comments: streamSourceMeta?.comments ?? 0,
+          favorites: streamSourceMeta?.favourites ?? 0,
+          impressions: streamSourceMeta?.impressions ?? 0,
+          likes: streamSourceMeta?.likes ?? 0,
+          quotes: streamSourceMeta?.quotes ?? 0,
+          replies: streamSourceMeta?.replies ?? 0,
+          retweets: streamSourceMeta?.retweets ?? 0,
+          shares: streamSourceMeta?.shares ?? 0,
+          views: streamSourceMeta?.views ?? 0
+        },
+        reach: {
+          potential: 0,
+          score: 0
+        },
+        reviewer: data?.reviewer,
+        reviewer_username: data?.reviewer,
+        source_date_time: data?.source_date_time,
+        source_url: data?.source_url,
+        status: data?.status,
+        stream_resource: null,
+        subject: data?.subject ?? null,
+        talk_about: data?.talk_about ?? null,
+        topic: data?.topic,
         user: {
-          id: '',
-          display_name: data?.display_name,
-          name: data?.name,
-          avatar_url: data?.avatar_url
+          id: data?.auth_id,
+          user_name: data?.auth_display_name,
+          user_url: data?.auth_link_url,
+          display_name: data?.auth_display_name,
+          avatar_url: data?.avatar_url,
+          favourites: authMetric?.favourites ?? 0,
+          followers: authMetric?.followers ?? 0,
+          following: authMetric?.following ?? 0,
+          friends: authMetric?.friends ?? 0,
+          likes: authMetric?.likes ?? 0
         }
-      } as Feed)
+      } as Feed
+      result.push(feedData)
     }
 
     console.log('🚀 ~ addFeedService ~ result:', result[0])
     return result
   } catch (error) {
+    console.log('🚀 ~ getFeedService ~ error:', error)
     logger.error('Error adding feed service:', error)
   }
 }
@@ -195,7 +192,7 @@ export const bulkInsertFeed = async () => {
       console.log('🚀 ~ bulkInsertFeed ~ idsString:', idsString)
 
       // Delete data from table
-      await db.execute(`DELETE FROM tbl_feeds_backup WHERE stream_source_id IN (${idsString})`)
+      await db.execute(`DELETE FROM tbl_stream_content_migration WHERE stream_id IN (${idsString})`)
     }
   } catch (error) {
     logger.error('Error bulk inserting feed:', error)

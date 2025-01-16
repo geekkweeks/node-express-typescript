@@ -1,5 +1,6 @@
 export interface Client {
-  id: String
-  name: String
-  sentiment: String
+  code: String | null
+  name: String | null
+  sentiment: String | null
+  issue: String | null
 }

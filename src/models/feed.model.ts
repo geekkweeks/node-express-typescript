@@ -1,5 +1,7 @@
 import { Client } from './client.model'
 import { Metric } from './metric.model'
+import { Reach } from './reach.mode'
+import { Relations } from './relations.model'
 import { User } from './user.model'
 
 export interface Feed {
@@ -15,13 +17,14 @@ export interface Feed {
   education: String | null
   gender: String | null
   group: String | null
-  issue: String | null
   location: String | null
   media_name: String | null
   metric: Metric | null
+  reach: Reach | null
+  relations: Relations | null
   subject: String | null
-  keyword: String | null
   reviewer: String | null
+  reviewer_username: String | null
   source_date_time: String | null
   status: String | null
   talk_about: String | null
@@ -34,7 +37,10 @@ export interface Feed {
   total_retweet: Number | 0
   total_shares: Number | 0
   total_views: Number | 0
-  is_analysed: Boolean | false
   analysed_date_time: String | 0
   is_manually: Boolean | false
+  edited: number | 0
+  keywords: String[] | []
+  stream_resource: String | null
+  topic: String | null
 }
