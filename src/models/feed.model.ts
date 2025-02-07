@@ -18,10 +18,11 @@ export interface Feed {
   gender: String | null
   group: String | null
   location: String | null
+  engage: Number | null
   media_name: String | null
   metric: Metric | null
   reach: Reach | null
-  relations: Relations | null
+  relations: Relations[] | []
   subject: String | null
   reviewer: String | null
   reviewer_username: String | null

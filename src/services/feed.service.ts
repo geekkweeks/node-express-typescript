@@ -5,8 +5,9 @@ import { Feed } from '../models/feed.model'
 import { AuthMetric, DataItem } from '../models/dataRow.model'
 import CONFIG from '../config/environment'
 import { Client as ElasticSearchClient } from '@elastic/elasticsearch'
-import { User } from '../models/user.model'
 import { SourceMeta } from '../models/source_meta.model'
+import { Relations } from '../models/relations.model'
+import { string } from 'joi/lib'
 
 export const getFeedService = async () => {
   try {
@@ -45,13 +46,16 @@ export const getFeedService = async () => {
                 c.auth_name auth_display_name,
                 c.auth_img_url avatar_url,
                 c.auth_metric auth_metric,
-                a.stream_edited edited
+                a.stream_edited edited,
+                cl.cluster_title subject
             FROM tbl_stream_content_migration a
             LEFT JOIN tbl_stream_analysis b on a.stream_id = b.analyse_stream_id
             LEFT JOIN tbl_stream_author c on a.stream_auth_id = c.auth_id
             LEFT JOIN trendata_creds.tbl_client d on b.analyse_client_id = d.client_id
             LEFT JOIN trendata_creds.tbl_media e on a.stream_media_id = e.media_id
             LEFT JOIN tbl_stream_author f on a.stream_auth_id = f.auth_id
+            LEFT JOIN tbl_stream_analysis g on a.stream_id = g.analyse_stream_id
+            LEFT JOIN trendata_creds.tbl_stream_cluster cl on g.analyse_cluster_id = cl.cluster_id
             LIMIT 15000`
     const [rows] = await db.query(query)
     const list = rows as DataItem[] | []
@@ -71,8 +75,6 @@ export const getFeedService = async () => {
           } as Client
         })
       const data = feedList[0]
-      console.log('🚀 ~ getFeedService ~ uniqueClients:', uniqueClients[0])
-
       let isManually = false
       if (
         data?.media_name === 'Forum' ||
@@ -119,6 +121,7 @@ export const getFeedService = async () => {
         keywords: data?.keywords ? JSON.parse(data?.keywords) : [],
         location: data?.location ?? null,
         media_name: data?.media_name,
+        engage: data?.engage ?? 0,
         metric: {
           comments: streamSourceMeta?.comments ?? 0,
           favorites: streamSourceMeta?.favourites ?? 0,
@@ -145,24 +148,31 @@ export const getFeedService = async () => {
         topic: data?.topic,
         user: {
           id: data?.auth_id,
-          user_name: data?.auth_display_name,
+          user_name: data?.author_name,
           user_url: data?.auth_link_url,
           display_name: data?.auth_display_name,
           avatar_url: data?.avatar_url,
           favourites: authMetric?.favourites ?? 0,
-          followers: authMetric?.followers ?? 0,
+          followers: authMetric?.followers ?? 0, // TODO: always return 0
           following: authMetric?.following ?? 0,
           friends: authMetric?.friends ?? 0,
           likes: authMetric?.likes ?? 0
         }
       } as Feed
+
+      // Stream relation
+      const queryRelation = `SELECT b.stream_source source, b.stream_target target, b.stream_relation relation from tbl_stream_content a JOIN tbl_stream_relation b on a.stream_id = b.stream_id WHERE a.stream_id = ${feedData?.id}`
+      const [relations] = await db.query(queryRelation)
+      const relationList = relations as Relations[] | []
+
+      if (relationList.length > 0) {
+        feedData.relations = relationList
+      }
+
       result.push(feedData)
     }
-
-    console.log('🚀 ~ addFeedService ~ result:', result[0])
     return result
   } catch (error) {
-    console.log('🚀 ~ getFeedService ~ error:', error)
     logger.error('Error adding feed service:', error)
   }
 }
@@ -177,11 +187,11 @@ export const bulkInsertFeed = async () => {
 
   // Prepare bulk insert actions
   const body = feeds.flatMap((doc) => [{ index: { _index: 'feed_management', _id: doc.id } }, doc])
-  console.log('🚀 ~ bulkInsertFeed ~ body:', body)
+
   try {
     const bulkResponse = await client.bulk({ refresh: true, body })
     // Check for errors
-    console.log('🚀 ~ bulkInsertFeed ~ k:', bulkResponse)
+
     if (bulkResponse.errors) {
       const erroredDocuments = bulkResponse.items.filter((item) => item.index && item.index.error)
       console.log('Bulk insert encountered errors:', erroredDocuments)
@@ -189,7 +199,6 @@ export const bulkInsertFeed = async () => {
       console.log('Bulk insert successful:', bulkResponse)
 
       const idsString = feeds.map((feed) => `'${feed.id}'`).join(', ')
-      console.log('🚀 ~ bulkInsertFeed ~ idsString:', idsString)
 
       // Delete data from table
       await db.execute(`DELETE FROM tbl_stream_content_migration WHERE stream_id IN (${idsString})`)
