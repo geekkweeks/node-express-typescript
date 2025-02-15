@@ -6,6 +6,7 @@ export interface DataItem {
   title: String | null
   topic: String | null
   subject: String | null
+  subject_id: String | null
   keywords: string | null
   age: String | null
   analysed_date_time: String | null
@@ -43,6 +44,7 @@ export interface DataItem {
   //     likes: Number | 0
   //   }
   auth_metric_str: string | null
+  reach: string | null
   edited: Number | 0
 }
 

@@ -3,7 +3,7 @@ import { bulkInsertFeed } from './services/feed.service'
 import { logger } from './utils/logger'
 
 // Define a cron job to run every minute
-cron.schedule('*/3 * * * *', async () => {
+cron.schedule('*/5 * * * *', async () => {
   console.log('Cron job running...')
 
   try {

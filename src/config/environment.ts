@@ -8,8 +8,8 @@ const CONFIG = {
   dbName: process.env.DB_NAME,
   dbPort: Number(process.env.DB_PORT ?? 3306),
   elasticSearchAPI: process.env.ELASTICSEARCH_API,
-  elasticSearchUserName: process.env.ELASTIC_USERNAME,
-  elasticSearchPassword: process.env.ELASTIC_PASSWORD
+  elasticUsername: process.env.ELASTIC_USERNAME,
+  elasticPassword: process.env.ELASTIC_PASSWORD
 }
 
 export default CONFIG

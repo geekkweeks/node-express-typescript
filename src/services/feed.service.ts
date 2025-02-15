@@ -4,10 +4,47 @@ import { logger } from '../utils/logger'
 import { Feed } from '../models/feed.model'
 import { AuthMetric, DataItem } from '../models/dataRow.model'
 import CONFIG from '../config/environment'
-import { Client as ElasticSearchClient } from '@elastic/elasticsearch'
+import { ClientOptions, Client as ElasticSearchClient } from '@elastic/elasticsearch'
 import { SourceMeta } from '../models/source_meta.model'
 import { Relations } from '../models/relations.model'
-import { string } from 'joi/lib'
+import { Reach } from '../models/reach.model'
+
+export const getClientAnalysis = async (streamId: string, subjectId: string) => {
+  const res: Client[] = []
+  const queryClients = `SELECT distinct  
+                client_code, client_name, lower(analyse_tone) sentiment
+            FROM tbl_stream_analysis a
+            JOIN trendata_creds.tbl_client b on a.analyse_client_id = b.client_id
+        WHERE analyse_stream_id = ${streamId} and analyse_cluster_id = ${subjectId}`
+  const [clientRows] = await db.query(queryClients)
+  const clientList = clientRows as any[]
+
+  if (clientList.length > 0) {
+    const clientPromises = clientList.map(async (clientRow: any) => {
+      const queryClientIssue = `SELECT  
+                client_code,
+                lower(analyse_tone) sentiment,
+                analyse_issue issue
+            FROM tbl_stream_analysis a
+            JOIN trendata_creds.tbl_client b on a.analyse_client_id = b.client_id
+        WHERE analyse_stream_id = ${streamId} and analyse_cluster_id = ${subjectId} and client_code = '${clientRow.client_code}'`
+      const [rows] = await db.query(queryClientIssue)
+      const analyseRows = rows as any[]
+
+      const issues = analyseRows.map((row: any) => row.issue) // analyse feed data
+
+      res.push({
+        code: clientRow.client_code,
+        name: clientRow.client_name,
+        sentiment: clientRow.sentiment,
+        issue: issues
+      } as Client)
+    })
+    await Promise.all(clientPromises)
+  }
+
+  return res
+}
 
 export const getFeedService = async () => {
   try {
@@ -19,9 +56,9 @@ export const getFeedService = async () => {
                 a.stream_keywords keywords,
                 null age,
                 DATE_FORMAT(a.stream_user_updated, '%Y-%m-%d %H:%i:%s') analysed_date_time,
-                d.client_code client_code,
-                d.client_name client_name,
-                lower(b.analyse_tone) sentiment,
+                -- d.client_code client_code,
+                -- d.client_name client_name,
+                -- lower(b.analyse_tone) sentiment,
                 null conversation,
                 a.stream_detail detail,
                 f.auth_edu education,
@@ -47,33 +84,30 @@ export const getFeedService = async () => {
                 c.auth_img_url avatar_url,
                 c.auth_metric auth_metric,
                 a.stream_edited edited,
-                cl.cluster_title subject
-            FROM tbl_stream_content_migration a
-            LEFT JOIN tbl_stream_analysis b on a.stream_id = b.analyse_stream_id
+                cl.cluster_title subject,
+                cl.cluster_id subject_id,
+                f.auth_metric auth_metric_str,
+                a.stream_reach reach
+            FROM tbl_stream_content a
+            -- LEFT JOIN tbl_stream_analysis b on a.stream_id = b.analyse_stream_id
             LEFT JOIN tbl_stream_author c on a.stream_auth_id = c.auth_id
-            LEFT JOIN trendata_creds.tbl_client d on b.analyse_client_id = d.client_id
+            -- LEFT JOIN trendata_creds.tbl_client d on b.analyse_client_id = d.client_id
             LEFT JOIN trendata_creds.tbl_media e on a.stream_media_id = e.media_id
             LEFT JOIN tbl_stream_author f on a.stream_auth_id = f.auth_id
             LEFT JOIN tbl_stream_analysis g on a.stream_id = g.analyse_stream_id
             LEFT JOIN trendata_creds.tbl_stream_cluster cl on g.analyse_cluster_id = cl.cluster_id
-            LIMIT 15000`
+            WHERE f.auth_metric is not null
+            LIMIT 50000`
     const [rows] = await db.query(query)
     const list = rows as DataItem[] | []
+
     const uniqueIdList = list
       .filter((obj, index, self) => index === self.findIndex((t) => t.id === obj.id))
       .map((obj) => obj.id)
 
-    for (const x in uniqueIdList) {
-      const feedList = list.filter((f) => f.id === uniqueIdList[x])
-      const uniqueClients = feedList
-        .filter((obj, index, self) => index === self.findIndex((t) => t.id === obj.id))
-        .map((obj) => {
-          return {
-            code: obj?.client_code,
-            name: obj?.client_name,
-            sentiment: obj?.sentiment
-          } as Client
-        })
+    for (const streamId in uniqueIdList) {
+      const feedList = list.filter((f) => f.id === uniqueIdList[streamId])
+
       const data = feedList[0]
       let isManually = false
       if (
@@ -84,6 +118,8 @@ export const getFeedService = async () => {
       ) {
         isManually = true
       }
+
+      const clients = await getClientAnalysis(data?.id as string, data?.subject_id as string)
 
       // Parse the JSON string in stream_source_meta
       let streamSourceMeta: SourceMeta | null = null
@@ -104,11 +140,20 @@ export const getFeedService = async () => {
         }
       }
 
+      let reach: Reach | null = null
+      if (data?.reach) {
+        try {
+          reach = JSON.parse(data.reach) as Reach
+        } catch (error) {
+          console.error('Error parsing reach:', error)
+        }
+      }
+
       const feedData = {
         id: data?.id,
         age: data?.age,
         analysed_date_time: data?.analysed_date_time,
-        clients: uniqueClients,
+        clients: clients ?? [],
         conversation: data?.conversation,
         detail: data?.detail,
         edited: data.edited ?? 0,
@@ -134,8 +179,8 @@ export const getFeedService = async () => {
           views: streamSourceMeta?.views ?? 0
         },
         reach: {
-          potential: 0,
-          score: 0
+          potential: reach?.potential,
+          score: reach?.score
         },
         reviewer: data?.reviewer,
         reviewer_username: data?.reviewer,
@@ -178,30 +223,38 @@ export const getFeedService = async () => {
 }
 
 export const bulkInsertFeed = async () => {
-  // Initialize Elasticsearch client
-  const client = new ElasticSearchClient({ node: CONFIG.elasticSearchAPI })
-  const feeds = await getFeedService()
-
-  // if feed has no records then stop the process
-  if (!feeds || feeds.length === 0) return
-
-  // Prepare bulk insert actions
-  const body = feeds.flatMap((doc) => [{ index: { _index: 'feed_management', _id: doc.id } }, doc])
-
   try {
+    // Initialize Elasticsearch client
+    let clientOptions = {
+      node: CONFIG.elasticSearchAPI
+    } as ClientOptions
+
+    if (CONFIG.elasticUsername && CONFIG.elasticPassword) {
+      clientOptions.auth = { username: CONFIG.elasticUsername, password: CONFIG.elasticPassword }
+    }
+    // Initialize Elasticsearch client
+    const client = new ElasticSearchClient(clientOptions)
+    console.log('🚀 ~ bulkInsertFeed ~ client:', client)
+
+    const feeds = await getFeedService()
+
+    // if feed has no records then stop the process
+    if (!feeds || feeds.length === 0) return
+
+    // Prepare bulk insert actions
+    const body = feeds.flatMap((doc) => [{ index: { _index: 'feed_management', _id: doc.id } }, doc])
+
+    console.log('🚀 ~ bulkInsertFeed ~ body:', body)
     const bulkResponse = await client.bulk({ refresh: true, body })
     // Check for errors
-
     if (bulkResponse.errors) {
       const erroredDocuments = bulkResponse.items.filter((item) => item.index && item.index.error)
       console.log('Bulk insert encountered errors:', erroredDocuments)
     } else {
       console.log('Bulk insert successful:', bulkResponse)
-
       const idsString = feeds.map((feed) => `'${feed.id}'`).join(', ')
-
       // Delete data from table
-      await db.execute(`DELETE FROM tbl_stream_content_migration WHERE stream_id IN (${idsString})`)
+      //   await db.execute(`DELETE FROM tbl_stream_content_migration WHERE stream_id IN (${idsString})`)
     }
   } catch (error) {
     logger.error('Error bulk inserting feed:', error)

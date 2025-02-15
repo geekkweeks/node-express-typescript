@@ -1,6 +1,6 @@
 import { Client } from './client.model'
 import { Metric } from './metric.model'
-import { Reach } from './reach.mode'
+import { Reach } from './reach.model'
 import { Relations } from './relations.model'
 import { User } from './user.model'
 

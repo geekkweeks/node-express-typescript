@@ -25,6 +25,7 @@
     "eslint-disable-next-line no-tabs": "off",
     "padded-blocks": "off",
     "@typescript-eslint/prefer-optional-chain": "off",
-    "no-tabs": "off"
+    "no-tabs": "off",
+    "eslint-disable-next-line prefer-const": "off"
   }
 }
