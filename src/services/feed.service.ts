@@ -225,7 +225,7 @@ export const getFeedService = async () => {
 export const bulkInsertFeed = async () => {
   try {
     // Initialize Elasticsearch client
-    let clientOptions = {
+    const clientOptions = {
       node: CONFIG.elasticSearchAPI
     } as ClientOptions
 
